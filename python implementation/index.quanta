@@ -1,0 +1,9 @@
+let x = 10
+let y = 20
+
+if x < y
+    write "x is less than y"
+elif x > y
+    write "x is greater than y"
+else
+    write "x is equal to y"
