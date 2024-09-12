@@ -1,9 +1,19 @@
-let x = 10
-let y = 20
+let x = 1
+let y = 10
 
-if x < y
-    write "x is less than y"
-elif x > y
+repeat 10
+    write x
+    let x = x + 1
+end
+
+write "Loop finished!"
+
+if x > y
     write "x is greater than y"
+elif x < y
+    write "x is less than y"
 else
     write "x is equal to y"
+end
+
+write "If finished!"

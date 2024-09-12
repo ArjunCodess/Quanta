@@ -34,7 +34,7 @@ def lexer(input):
                 cursor += 1
 
             # Check if the word is a keyword
-            if word in {'let', 'write', 'if', 'elif', 'else', 'end'}:
+            if word in {'let', 'write', 'if', 'elif', 'else', 'end', 'repeat'}:
                 tokens.append({'type': 'keyword', 'value': word})
             else:
                 tokens.append({'type': 'identifier', 'value': word})
@@ -106,17 +106,11 @@ def parser(tokens):
         return expression.strip()
 
     def parse_block(tokens):
-        """
-        Parses a sequence of tokens into a block of statements.
-
-        Parameters:
-        tokens (list): A list of dictionaries, where each dictionary represents a token with 'type' and 'value' keys.
-
-        Returns:
-        list: A list of dictionaries representing the parsed statements.
-        """
         body = []
-        while tokens and tokens[0]['value'] not in {'elif', 'else', 'end'}:
+        while tokens:
+            if tokens[0]['value'] == 'end':
+                tokens.pop(0)  # Consume the 'end' token
+                break
             token = tokens.pop(0)
 
             if token['type'] == 'keyword' and token['value'] == 'let':
@@ -134,11 +128,14 @@ def parser(tokens):
             elif token['type'] == 'keyword' and token['value'] == 'write':
                 body.append({
                     'type': 'Print',
-                    'expression': parse_expression(tokens),  # Correctly handle expressions
+                    'expression': parse_expression(tokens),
                 })
 
             elif token['type'] == 'keyword' and token['value'] == 'if':
                 body.append(parse_if(tokens))
+
+            elif token['type'] == 'keyword' and token['value'] == 'repeat':
+                body.append(parse_repeat(tokens))
 
         return body
 
@@ -155,21 +152,30 @@ def parser(tokens):
         if_node = {
             'type': 'If',
             'test': parse_expression(tokens),
-            'consequent': [],
+            'consequent': parse_block(tokens),
             'alternate': None,
         }
-
-        if_node['consequent'] = parse_block(tokens)
 
         if tokens and tokens[0]['value'] == 'elif':
             tokens.pop(0)
             if_node['alternate'] = parse_if(tokens)
-
         elif tokens and tokens[0]['value'] == 'else':
             tokens.pop(0)
             if_node['alternate'] = {'type': 'Block', 'body': parse_block(tokens)}
 
         return if_node
+
+    def parse_repeat(tokens):
+        """
+        Parses a 'repeat' loop statement.
+        """
+        repeat_node = {
+            'type': 'Repeat',
+            'count': parse_expression(tokens),
+            'body': [],
+        }
+        repeat_node['body'] = parse_block(tokens)
+        return repeat_node
 
     ast = {
         'type': 'Program',
@@ -206,17 +212,25 @@ def codeGenerator(node, indent_level=0):
     elif node['type'] == 'If':
         code = f"{indent}if {node['test']}:\n"
         code += codeGenerator({'type': 'Block', 'body': node['consequent']}, indent_level + 1)
+        code += f"\n{indent}# end"
 
         if node['alternate']:
             if node['alternate']['type'] == 'If':
                 code += f"\n{indent}el{codeGenerator(node['alternate'], indent_level)}"
-
             else:
-                code += f"\n{indent}else:\n{codeGenerator({'type': 'Block', 'body': node['alternate']['body']}, indent_level + 1)}"
+                code += f"\n{indent}else:\n{codeGenerator(node['alternate'], indent_level + 1)}"
+                code += f"\n{indent}# end"
         return code
     
     elif node['type'] == 'Block':
         return '\n'.join(codeGenerator(n, indent_level) for n in node['body'])
+    
+    elif node['type'] == 'Repeat':
+        code = f"{indent}for _ in range(int({node['count']})):\n"
+        code += codeGenerator({'type': 'Block', 'body': node['body']}, indent_level + 1)
+        code += f"\n{indent}# end"
+        return code
+    
     else:
         raise ValueError(f"Unrecognized node type: {node['type']}")
 
@@ -233,7 +247,6 @@ def compiler(input):
     tokens = lexer(input)
     ast = parser(tokens)
     executableCode = codeGenerator(ast)
-
     return executableCode
 
 def runner(input):
@@ -254,8 +267,8 @@ def main():
     with open(os.path.join(path, "index.quanta"), 'r') as file:
         code = file.read()
 
-    executable = compiler(code)
-    runner(executable)
+    python_code = compiler(code)
+    exec(python_code, globals())
 
 if __name__ == "__main__":
     main()
